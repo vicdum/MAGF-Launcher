@@ -1058,10 +1058,6 @@ endif()
 qt_add_resources(LAUNCHER_RESOURCES
     resources/backgrounds/backgrounds.qrc
     resources/multimc/multimc.qrc
-    resources/pe_dark/pe_dark.qrc
-    resources/pe_light/pe_light.qrc
-    resources/pe_colored/pe_colored.qrc
-    resources/pe_blue/pe_blue.qrc
     resources/breeze_dark/breeze_dark.qrc
     resources/breeze_light/breeze_light.qrc
     resources/flat/flat.qrc

@@ -91,6 +91,5 @@ class ThemeManager {
     NSObject* m_windowTitlebarObserver = nullptr;
 #endif
 
-    static inline const QStringList s_builtinIcons{"pe_colored",  "pe_light", "pe_dark",    "pe_blue", "breeze_light",
-                                                   "breeze_dark", "flat",     "flat_white", "multimc"};
+    static inline const QStringList s_builtinIcons{ "breeze_light", "breeze_dark", "flat", "flat_white", "multimc" };
 };

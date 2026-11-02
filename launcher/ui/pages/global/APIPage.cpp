@@ -135,9 +135,6 @@ void APIPage::loadSettings()
 
     ui->pasteTypeComboBox->setCurrentIndex(pasteTypeIndex);
 
-    if (bool fallbackMRBlockedMods = s->get("FallbackMRBlockedMods").toBool()) {
-        ui->FallbackMRBlockedMods->setChecked(fallbackMRBlockedMods);
-    }
 
     QString msaClientID = s->get("MSAClientIDOverride").toString();
     ui->msaClientID->setText(msaClientID);
@@ -148,13 +145,8 @@ void APIPage::loadSettings()
     ui->resourceURL->setText(resourceURL);
     QString fmlLibsURL = s->get("LegacyFMLLibsURLOverride").toString();
     ui->legacyFMLLibsURL->setText(fmlLibsURL);
-    QString flameKey = s->get("FlameKeyOverride").toString();
-    ui->flameKey->setText(flameKey);
-    QString modrinthToken = s->get("ModrinthToken").toString();
-    ui->modrinthToken->setText(modrinthToken);
     QString customUserAgent = s->get("UserAgentOverride").toString();
     ui->userAgentLineEdit->setText(customUserAgent);
-    ui->technicClientID->setText(s->get("TechnicClientID").toString());
 }
 
 void APIPage::applySettings()
@@ -193,17 +185,11 @@ void APIPage::applySettings()
     upgradeToHTTPS(resourceURL);
     upgradeToHTTPS(fmlLibsURL);
 
-    s->set("FallbackMRBlockedMods", ui->FallbackMRBlockedMods->checkState());
     s->set("MetaURLOverride", metaURL.toString());
     s->set("MetaRefreshOnLaunch", ui->metaRefreshOnLaunchCB->checkState() == Qt::Checked);
     s->set("ResourceURLOverride", resourceURL.toString());
     s->set("LegacyFMLLibsURLOverride", fmlLibsURL.toString());
-    QString flameKey = ui->flameKey->text();
-    s->set("FlameKeyOverride", flameKey);
-    QString modrinthToken = ui->modrinthToken->text();
-    s->set("ModrinthToken", modrinthToken);
     s->set("UserAgentOverride", ui->userAgentLineEdit->text());
-    s->set("TechnicClientID", ui->technicClientID->text());
 }
 
 bool APIPage::apply()

@@ -66,6 +66,7 @@ void LanguageSelectionWidget::retranslate()
     QString text = tr("Don't see your language or the quality is poor?<br/><a href=\"%1\">Help us with translations!</a>")
                        .arg(BuildConfig.TRANSLATIONS_URL);
     m_helpUsLabel->setText(text);
+    m_helpUsLabel->setVisible(!BuildConfig.TRANSLATIONS_URL.isEmpty());
     m_formatCheckbox->setText(tr("Use system regional standards"));
 }
 

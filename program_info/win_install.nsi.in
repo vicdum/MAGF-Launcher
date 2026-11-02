@@ -445,7 +445,6 @@ Section /o "Shell Association (Open-With dialog)" SHELL_ASSOC
 
   !insertmacro APP_SETUP `${APPDESCRIPTION}` `${APPICON}` `${APPID}` `${APPCMDTEXT}` `${APPEXE}` `${APPCMDTEXT}` '$INSTDIR\${APPEXE} -I "%1"'
 
-  !insertmacro APP_ASSOCIATE_DEFAULT ".mrpack" `${APPID}` `${APPEXE}` true
   !insertmacro APP_ASSOCIATE ".zip" `${APPID}` `${APPEXE}` false
 
   !insertmacro NotifyShell_AssocChanged
@@ -490,7 +489,6 @@ Section -un.ShellAssoc
   !insertmacro APP_TEARDOWN_DEFAULT `${APPID}` `${APPNAME}` `${APPEXE}`
 
   !insertmacro APP_UNASSOCIATE ".zip" `${APPID}` `${APPEXE}`
-  !insertmacro APP_UNASSOCIATE ".mrpack" `${APPID}` `${APPEXE}`
 
   !insertmacro NotifyShell_AssocChanged
 SectionEnd
