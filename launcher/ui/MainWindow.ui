@@ -463,7 +463,7 @@
     <iconset theme="launcher"/>
    </property>
    <property name="text">
-    <string>Prism Launcher (zip)</string>
+    <string>MAGF Launcher (zip)</string>
    </property>
   </action>
   <action name="actionExportInstanceMrPack">
