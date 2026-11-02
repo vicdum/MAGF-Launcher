@@ -39,7 +39,6 @@
 
 #include <QPointer>
 #include "ExternalResourcesPage.h"
-#include "ui/dialogs/ResourceDownloadDialog.h"
 
 class ShaderPackPage : public ExternalResourcesPage {
     Q_OBJECT
@@ -55,13 +54,7 @@ class ShaderPackPage : public ExternalResourcesPage {
     bool shouldDisplay() const override { return true; }
 
    public slots:
-    void downloadShaderPack();
-    void downloadDialogFinished(int result);
-    void updateShaderPacks();
-    void deleteShaderPackMetadata();
-    void changeShaderPackVersion();
 
    private:
     ShaderPackFolderModel* m_model;
-    QPointer<ResourceDownload::ResourceDownloadDialog> m_downloadDialog;
 };

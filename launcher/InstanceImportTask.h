@@ -53,9 +53,6 @@ class InstanceImportTask : public InstanceTask {
 
    private:
     void processMultiMC();
-    void processTechnic();
-    void processFlame();
-    void processModrinth();
     void downloadFromUrl();
 
    private slots:
@@ -70,9 +67,6 @@ class InstanceImportTask : public InstanceTask {
     enum class ModpackType : std::uint8_t {
         Unknown,
         MultiMC,
-        Technic,
-        Flame,
-        Modrinth,
     } m_modpackType = ModpackType::Unknown;
 
     // Extra info we might need, that's available before, but can't be derived from

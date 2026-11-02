@@ -40,7 +40,6 @@
 #include <QPointer>
 
 #include "ExternalResourcesPage.h"
-#include "ui/dialogs/ResourceDownloadDialog.h"
 #include "ui_ExternalResourcesPage.h"
 
 #include "minecraft/mod/ResourcePackFolderModel.h"
@@ -64,13 +63,7 @@ class ResourcePackPage : public ExternalResourcesPage {
     void updateFrame(const QModelIndex& current, const QModelIndex& previous) override;
 
    private slots:
-    void downloadResourcePacks();
-    void downloadDialogFinished(int result);
-    void updateResourcePacks();
-    void deleteResourcePackMetadata();
-    void changeResourcePackVersion();
 
    protected:
     ResourcePackFolderModel* m_model;
-    QPointer<ResourceDownload::ResourceDownloadDialog> m_downloadDialog;
 };

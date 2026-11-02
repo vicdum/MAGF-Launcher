@@ -39,7 +39,6 @@
 #include "ModFolderPage.h"
 #include "minecraft/mod/Resource.h"
 #include "ui/dialogs/ExportToModListDialog.h"
-#include "ui/dialogs/InstallLoaderDialog.h"
 #include "ui_ExternalResourcesPage.h"
 
 #include <QAbstractItemModel>
@@ -57,8 +56,6 @@
 #include "settings/Setting.h"
 
 #include "ui/dialogs/CustomMessageBox.h"
-#include "ui/dialogs/ResourceDownloadDialog.h"
-#include "ui/dialogs/ResourceUpdateDialog.h"
 
 #include "minecraft/PackProfile.h"
 #include "minecraft/VersionFilterData.h"
@@ -72,52 +69,6 @@
 ModFolderPage::ModFolderPage(MinecraftInstance* inst, ModFolderModel* model, QWidget* parent)
     : ExternalResourcesPage(inst, model, parent), m_model(model)
 {
-    m_ui->actionDownloadItem->setText(tr("Download Mods"));
-    m_ui->actionDownloadItem->setToolTip(tr("Download mods from online mod platforms"));
-    m_ui->actionDownloadItem->setEnabled(true);
-    m_ui->actionsToolbar->insertActionBefore(m_ui->actionAddItem, m_ui->actionDownloadItem);
-
-    connect(m_ui->actionDownloadItem, &QAction::triggered, this, &ModFolderPage::downloadMods);
-
-    m_ui->actionUpdateItem->setToolTip(tr("Try to check or update all selected mods (all mods if none are selected)"));
-    connect(m_ui->actionUpdateItem, &QAction::triggered, this, [this] { updateMods(); });
-    m_ui->actionsToolbar->insertActionBefore(m_ui->actionAddItem, m_ui->actionUpdateItem);
-
-    auto* updateMenu = new QMenu(this);
-
-    auto* update = updateMenu->addAction(tr("Check for Updates"));
-    connect(update, &QAction::triggered, this, [this] { updateMods(); });
-
-    auto* updateReleasesOnly = updateMenu->addAction(tr("Check for Updates (Release only)"));
-    connect(updateReleasesOnly, &QAction::triggered, this, [this] { updateMods(false, { ModPlatform::IndexedVersionType::Release }); });
-
-    auto* updateIncludeBetas = updateMenu->addAction(tr("Check for Updates (Release and Beta)"));
-    connect(updateIncludeBetas, &QAction::triggered, this,
-            [this] { updateMods(false, { ModPlatform::IndexedVersionType::Release, ModPlatform::IndexedVersionType::Beta }); });
-
-    auto* updateIncludeAlphas = updateMenu->addAction(tr("Check for Updates (Release, Beta and Alpha)"));
-    connect(updateIncludeAlphas, &QAction::triggered, this, [this] {
-        updateMods(false, { ModPlatform::IndexedVersionType::Release, ModPlatform::IndexedVersionType::Beta,
-                            ModPlatform::IndexedVersionType::Alpha });
-    });
-
-    updateMenu->addAction(m_ui->actionVerifyItemDependencies);
-    connect(m_ui->actionVerifyItemDependencies, &QAction::triggered, this, [this] { updateMods(true); });
-
-    auto depsDisabled = APPLICATION->settings()->getSetting("ModDependenciesDisabled");
-    m_ui->actionVerifyItemDependencies->setVisible(!depsDisabled->get().toBool());
-    connect(depsDisabled.get(), &Setting::SettingChanged, this,
-            [this](const Setting&, const QVariant& value) { m_ui->actionVerifyItemDependencies->setVisible(!value.toBool()); });
-
-    updateMenu->addAction(m_ui->actionResetItemMetadata);
-    connect(m_ui->actionResetItemMetadata, &QAction::triggered, this, &ModFolderPage::deleteModMetadata);
-
-    m_ui->actionUpdateItem->setMenu(updateMenu);
-
-    m_ui->actionChangeVersion->setToolTip(tr("Change a mod's version."));
-    connect(m_ui->actionChangeVersion, &QAction::triggered, this, &ModFolderPage::changeModVersion);
-    m_ui->actionsToolbar->insertActionAfter(m_ui->actionUpdateItem, m_ui->actionChangeVersion);
-
     m_ui->actionViewHomepage->setToolTip(tr("View the homepages of all selected mods."));
 
     m_ui->actionExportMetadata->setToolTip(tr("Export mod's metadata to text."));
@@ -125,8 +76,6 @@ ModFolderPage::ModFolderPage(MinecraftInstance* inst, ModFolderModel* model, QWi
     m_ui->actionsToolbar->insertActionAfter(m_ui->actionViewHomepage, m_ui->actionExportMetadata);
 
     m_ui->actionsToolbar->insertActionAfter(m_ui->actionViewFolder, m_ui->actionViewConfigs);
-    m_ui->actionsToolbar->insertActionAfter(m_ui->actionChangeVersion, m_ui->actionLockUpdates);
-    m_ui->actionsToolbar->insertActionAfter(m_ui->actionLockUpdates, m_ui->actionUnlockUpdates);
 }
 
 bool ModFolderPage::shouldDisplay() const
@@ -181,187 +130,6 @@ void ModFolderPage::removeItems(const QItemSelection& selection)
         }
     }
     m_model->deleteResources(indexes);
-}
-
-void ModFolderPage::downloadMods()
-{
-    auto* profile = m_instance->getPackProfile();
-    if (!profile->getModLoaders().has_value() && handleNoModLoader()) {
-        return;
-    }
-
-    m_downloadDialog = ResourceDownload::ResourceDownloadDialog::createMod(this, m_model, m_instance);
-    connect(this, &QObject::destroyed, m_downloadDialog, &QDialog::close);
-    connect(m_downloadDialog, &QDialog::finished, this, &ModFolderPage::downloadDialogFinished);
-
-    m_downloadDialog->open();
-}
-
-void ModFolderPage::downloadDialogFinished(int result)
-{
-    if (result != 0) {
-        ConcurrentTask tasks(tr("Download Mods"), APPLICATION->settings()->get("NumberOfConcurrentDownloads").toInt());
-        connect(&tasks, &Task::failed, this,
-                [this](const QString& reason) { CustomMessageBox::selectable(this, tr("Error"), reason, QMessageBox::Critical)->show(); });
-        connect(&tasks, &Task::succeeded, this, [this, &tasks]() {
-            QStringList warnings = tasks.warnings();
-            if (warnings.count()) {
-                CustomMessageBox::selectable(this, tr("Warnings"), warnings.join('\n'), QMessageBox::Warning)->show();
-            }
-        });
-
-        if (m_downloadDialog) {
-            for (auto& task : m_downloadDialog->getTasks()) {
-                tasks.addTask(task);
-            }
-        } else {
-            qWarning() << "ResourceDownloadDialog vanished before we could collect tasks!";
-        }
-
-        ProgressDialog loadDialog(this);
-        loadDialog.showSkipButton();
-        loadDialog.execWithTask(&tasks);
-
-        m_model->update();
-    }
-    if (m_downloadDialog) {
-        m_downloadDialog->deleteLater();
-    }
-}
-
-void ModFolderPage::updateMods(bool includeDeps, std::vector<ModPlatform::IndexedVersionType> releaseTypes)
-{
-    auto* profile = m_instance->getPackProfile();
-    if (!profile->getModLoaders().has_value() && handleNoModLoader()) {
-        return;
-    }
-    if (APPLICATION->settings()->get("ModMetadataDisabled").toBool()) {
-        QMessageBox::critical(this, tr("Error"), tr("Mod updates are unavailable when metadata is disabled!"));
-        return;
-    }
-
-    if (m_instance != nullptr && m_instance->isRunning()) {
-        auto response =
-            CustomMessageBox::selectable(this, tr("Confirm Update"),
-                                         tr("Updating mods while the game is running may cause mod duplication and game crashes.\n"
-                                            "The old files may not be deleted as they are in use.\n"
-                                            "Are you sure you want to do this?"),
-                                         QMessageBox::Warning, QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
-                ->exec();
-
-        if (response != QMessageBox::Yes) {
-            return;
-        }
-    }
-    auto selection = m_filterModel->mapSelectionToSource(m_ui->treeView->selectionModel()->selection()).indexes();
-
-    auto modsList = m_model->selectedResources(selection);
-    bool useAll = modsList.empty();
-    if (useAll) {
-        modsList = m_model->allResources();
-    }
-
-    ResourceUpdateDialog updateDialog(this, m_instance, m_model, modsList, includeDeps, profile->getModLoadersList(), std::move(releaseTypes));
-    updateDialog.checkCandidates();
-
-    if (updateDialog.aborted()) {
-        return;
-    }
-    if (updateDialog.noUpdates()) {
-        QString message{ tr("'%1' is up-to-date! :)").arg(modsList.front()->name()) };
-        if (modsList.size() > 1) {
-            if (useAll) {
-                message = tr("All mods are up-to-date! :)");
-            } else {
-                message = tr("All selected mods are up-to-date! :)");
-            }
-        }
-        CustomMessageBox::selectable(this, tr("Update checker"), message)->exec();
-        return;
-    }
-
-    if (updateDialog.exec() != 0) {
-        ConcurrentTask tasks("Download Mods", APPLICATION->settings()->get("NumberOfConcurrentDownloads").toInt());
-        connect(&tasks, &Task::failed, this,
-                [this](const QString& reason) { CustomMessageBox::selectable(this, tr("Error"), reason, QMessageBox::Critical)->show(); });
-        connect(&tasks, &Task::succeeded, this, [this, &tasks]() {
-            QStringList warnings = tasks.warnings();
-            if (warnings.count()) {
-                CustomMessageBox::selectable(this, tr("Warnings"), warnings.join('\n'), QMessageBox::Warning)->show();
-            }
-        });
-
-        for (const auto& task : updateDialog.getTasks()) {
-            tasks.addTask(task);
-        }
-
-        ProgressDialog loadDialog(this);
-        loadDialog.showSkipButton();
-        loadDialog.execWithTask(&tasks);
-
-        m_model->update();
-    }
-}
-
-void ModFolderPage::deleteModMetadata()
-{
-    auto selection = m_filterModel->mapSelectionToSource(m_ui->treeView->selectionModel()->selection()).indexes();
-    auto selectionCount = m_model->selectedMods(selection).length();
-    if (selectionCount == 0) {
-        return;
-    }
-    if (selectionCount > 1) {
-        auto response = CustomMessageBox::selectable(this, tr("Confirm Removal"),
-                                                     tr("You are about to remove the metadata for %1 mods.\n"
-                                                        "Are you sure?")
-                                                         .arg(selectionCount),
-                                                     QMessageBox::Warning, QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
-                            ->exec();
-
-        if (response != QMessageBox::Yes) {
-            return;
-        }
-    }
-
-    m_model->deleteMetadata(selection);
-}
-
-void ModFolderPage::changeModVersion()
-{
-    if (m_instance != nullptr && m_instance->isRunning()) {
-        auto response = CustomMessageBox::selectable(
-                            this, tr("Confirm Change Version"),
-                            tr("Changing version of mods while the game is running may cause mod duplication and game crashes.\n"
-                               "The old files may not be deleted as they are in use.\n"
-                               "Are you sure you want to do this?"),
-                            QMessageBox::Warning, QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
-                            ->exec();
-
-        if (response != QMessageBox::Yes) {
-            return;
-        }
-    }
-
-    auto* profile = m_instance->getPackProfile();
-    if (!profile->getModLoaders().has_value() && handleNoModLoader()) {
-        return;
-    }
-    if (APPLICATION->settings()->get("ModMetadataDisabled").toBool()) {
-        QMessageBox::critical(this, tr("Error"), tr("Mod updates are unavailable when metadata is disabled!"));
-        return;
-    }
-    auto selection = m_filterModel->mapSelectionToSource(m_ui->treeView->selectionModel()->selection()).indexes();
-    auto modsList = m_model->selectedMods(selection);
-    if (modsList.length() != 1 || modsList[0]->metadata() == nullptr) {
-        return;
-    }
-
-    m_downloadDialog = ResourceDownload::ResourceDownloadDialog::createMod(this, m_model, m_instance, true);
-    connect(this, &QObject::destroyed, m_downloadDialog, &QDialog::close);
-    connect(m_downloadDialog, &QDialog::finished, this, &ModFolderPage::downloadDialogFinished);
-
-    m_downloadDialog->setResourceMetadata((*modsList.begin())->metadata());
-    m_downloadDialog->open();
 }
 
 void ModFolderPage::exportModMetadata()
@@ -421,33 +189,3 @@ bool NilModFolderPage::shouldDisplay() const
     return m_model->dir().exists();
 }
 
-// Helper function so this doesn't need to be duplicated 3 times
-inline bool ModFolderPage::handleNoModLoader()
-{
-    int resp = QMessageBox::question(
-        this, ModFolderPage::tr("Missing Mod Loader"),
-        ModFolderPage::tr("You need to install a compatible mod loader before installing mods. Would you like to do so?"),
-        QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
-    if (resp == QMessageBox::Yes) {
-        // Should be safe
-        auto* profile = this->m_instance->getPackProfile();
-        InstallLoaderDialog dialog(profile, QString(), this);
-        // true if the user went through the install loader dialog
-        // false if the dialog got canceled/closed
-        bool dialogAccepted = dialog.exec() != 0;
-        this->m_container->refreshContainer();
-
-        if (!dialogAccepted) {
-            return true;
-        }
-        if (!profile->getModLoaders().has_value()) {
-            CustomMessageBox::selectable(this, tr("Error"), tr("No mod loader was installed. Please try again."), QMessageBox::Warning)
-                ->show();
-            return true;
-        }
-        return false;
-    }
-    // Nothing happens the dialog is already closing
-    // returning true so the caller doesn't go and continue with opening it's dialog without a mod loader
-    return true;
-}

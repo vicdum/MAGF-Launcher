@@ -39,8 +39,6 @@
 #include "StringUtils.h"
 #endif
 #include "Application.h"
-#include "ui/pages/modplatform/ModpackProviderBasePage.h"
-#include "ui/pages/modplatform/import_ftb/ImportFTBPage.h"
 #include "ui_NewInstanceDialog.h"
 
 #include <BaseVersion.h>
@@ -66,12 +64,6 @@
 
 #include "ui/pages/modplatform/CustomPage.h"
 #include "ui/pages/modplatform/ImportPage.h"
-#include "ui/pages/modplatform/atlauncher/AtlPage.h"
-#include "ui/pages/modplatform/flame/FlamePage.h"
-#include "ui/pages/modplatform/ftb/FtbPage.h"
-#include "ui/pages/modplatform/legacy_ftb/Page.h"
-#include "ui/pages/modplatform/modrinth/ModrinthPage.h"
-#include "ui/pages/modplatform/technic/TechnicPage.h"
 #include "ui/widgets/PageContainer.h"
 
 NewInstanceDialog::NewInstanceDialog(const QString& initialGroup,
@@ -177,20 +169,9 @@ NewInstanceDialog::NewInstanceDialog(const QString& initialGroup,
     connect(helpButton, &QPushButton::clicked, m_container, &PageContainer::help);
 
     if (!url.isEmpty()) {
-        QUrl actualUrl(url);
-        const auto packId = extraInfo.value("pack_id");
-        if (actualUrl.scheme().compare("modrinth", Qt::CaseInsensitive) == 0 && !packId.isEmpty()) {
-            auto* page = dynamic_cast<ModrinthPage*>(m_container->getPage("modrinth"));
-            if (page) {
-                m_searchTerm = "#" + packId;
-                page->setSearchTerm(m_searchTerm);
-                m_container->selectPage(page->id());
-            }
-        } else {
-            m_container->selectPage("import");
-            m_importPage->setUrl(url);
-            m_importPage->setExtraInfo(extraInfo);
-        }
+        m_container->selectPage("import");
+        m_importPage->setUrl(url);
+        m_importPage->setExtraInfo(extraInfo);
     }
 
     updateDialogState();
@@ -203,7 +184,6 @@ NewInstanceDialog::NewInstanceDialog(const QString& initialGroup,
         resize(width(), qMin(geometry.height() - 50, 710));
     }
 
-    connect(m_container, &PageContainer::selectedPageChanged, this, &NewInstanceDialog::selectedPageChanged);
 }
 
 void NewInstanceDialog::reject()
@@ -246,15 +226,6 @@ QList<BasePage*> NewInstanceDialog::getPages()
 
     pages.append(new CustomPage(this));
     pages.append(m_importPage);
-    pages.append(new AtlPage(this));
-    if (APPLICATION->capabilities() & Application::SupportsFlame) {
-        pages.append(new FlamePage(this));
-    }
-    pages.append(new FtbPage(this));
-    pages.append(new LegacyFTB::Page(this));
-    pages.append(new FTBImportAPP::ImportFTBPage(this));
-    pages.append(new ModrinthPage(this));
-    pages.append(new TechnicPage(this));
 
     return pages;
 }
@@ -456,17 +427,4 @@ bool NewInstanceDialog::eventFilter(QObject* watched, QEvent* event)
         QTimer::singleShot(0, ui->instNameTextBox, &QLineEdit::selectAll);
     }
     return QDialog::eventFilter(watched, event);
-}
-
-void NewInstanceDialog::selectedPageChanged(BasePage* previous, BasePage* selected)
-{
-    auto* prevPage = dynamic_cast<ModpackProviderBasePage*>(previous);
-    if (prevPage) {
-        m_searchTerm = prevPage->getSerachTerm();
-    }
-
-    auto* nextPage = dynamic_cast<ModpackProviderBasePage*>(selected);
-    if (nextPage) {
-        nextPage->setSearchTerm(m_searchTerm);
-    }
 }

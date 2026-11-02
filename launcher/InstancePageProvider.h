@@ -6,7 +6,6 @@
 #include "ui/pages/BasePageProvider.h"
 #include "ui/pages/instance/InstanceSettingsPage.h"
 #include "ui/pages/instance/LogPage.h"
-#include "ui/pages/instance/ManagedPackPage.h"
 #include "ui/pages/instance/ModFolderPage.h"
 #include "ui/pages/instance/NotesPage.h"
 #include "ui/pages/instance/OtherLogsPage.h"
@@ -29,7 +28,6 @@ class InstancePageProvider : protected QObject, public BasePageProvider {
         QList<BasePage*> values;
         values.append(new LogPage(inst));
         values.append(new VersionPage(inst));
-        values.append(ManagedPackPage::createPage(inst));
         auto modsPage = new ModFolderPage(inst, inst->loaderModList());
         modsPage->setFilter("%1 (*.zip *.jar *.litemod *.nilmod)");
         values.append(modsPage);

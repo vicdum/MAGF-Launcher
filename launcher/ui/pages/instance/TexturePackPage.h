@@ -40,7 +40,6 @@
 #include <QPointer>
 
 #include "ExternalResourcesPage.h"
-#include "ui/dialogs/ResourceDownloadDialog.h"
 #include "ui_ExternalResourcesPage.h"
 
 #include "minecraft/mod/TexturePackFolderModel.h"
@@ -59,13 +58,7 @@ class TexturePackPage : public ExternalResourcesPage {
 
    public slots:
     void updateFrame(const QModelIndex& current, const QModelIndex& previous) override;
-    void downloadTexturePacks();
-    void downloadDialogFinished(int result);
-    void updateTexturePacks();
-    void deleteTexturePackMetadata();
-    void changeTexturePackVersion();
 
    private:
     TexturePackFolderModel* m_model;
-    QPointer<ResourceDownload::ResourceDownloadDialog> m_downloadDialog;
 };

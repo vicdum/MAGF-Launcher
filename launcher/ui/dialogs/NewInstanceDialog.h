@@ -48,7 +48,6 @@ class PageContainer;
 class QCheckBox;
 class QDialogButtonBox;
 class ImportPage;
-class FlamePage;
 
 class NewInstanceDialog : public QDialog, public BasePageProvider {
     Q_OBJECT
@@ -86,7 +85,6 @@ class NewInstanceDialog : public QDialog, public BasePageProvider {
    private slots:
     void on_iconButton_clicked();
     void on_instNameTextBox_textChanged(const QString& arg1);
-    void selectedPageChanged(BasePage* previous, BasePage* selected);
 
    private:
     void importIconNow();
@@ -112,5 +110,4 @@ class NewInstanceDialog : public QDialog, public BasePageProvider {
     bool m_nameFieldSelectedOnce = false;
     bool m_nameFieldEditedByUser = false;
 
-    QString m_searchTerm;
 };

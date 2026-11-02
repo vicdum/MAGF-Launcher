@@ -40,12 +40,9 @@
 
 #include <QPointer>
 #include "ExternalResourcesPage.h"
-#include "ui/dialogs/ResourceDownloadDialog.h"
 
 class ModFolderPage : public ExternalResourcesPage {
     Q_OBJECT
-
-    inline bool handleNoModLoader();
 
    public:
     explicit ModFolderPage(MinecraftInstance* inst, ModFolderModel* model, QWidget* parent = nullptr);
@@ -65,17 +62,10 @@ class ModFolderPage : public ExternalResourcesPage {
 
    private slots:
     void removeItems(const QItemSelection& selection) override;
-
-    void downloadMods();
-    void downloadDialogFinished(int result);
-    void updateMods(bool includeDeps = false, std::vector<ModPlatform::IndexedVersionType> releaseTypes = {});
-    void deleteModMetadata();
     void exportModMetadata();
-    void changeModVersion();
 
    protected:
     ModFolderModel* m_model;
-    QPointer<ResourceDownload::ResourceDownloadDialog> m_downloadDialog;
 };
 
 class CoreModFolderPage : public ModFolderPage {

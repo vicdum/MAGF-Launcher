@@ -21,7 +21,6 @@
 #include <QVBoxLayout>
 #include "ExternalResourcesPage.h"
 #include "minecraft/mod/DataPackFolderModel.h"
-#include "ui/dialogs/ResourceDownloadDialog.h"
 
 class DataPackPage : public ExternalResourcesPage {
     Q_OBJECT
@@ -36,15 +35,9 @@ class DataPackPage : public ExternalResourcesPage {
 
    public slots:
     void updateFrame(const QModelIndex& current, const QModelIndex& previous) override;
-    void downloadDataPacks();
-    void downloadDialogFinished(int result);
-    void updateDataPacks();
-    void deleteDataPackMetadata();
-    void changeDataPackVersion();
 
    private:
     DataPackFolderModel* m_model;
-    QPointer<ResourceDownload::ResourceDownloadDialog> m_downloadDialog;
 };
 
 /**

@@ -46,14 +46,12 @@
 #include "icons/IconList.h"
 #include "icons/IconUtils.h"
 
-#include "modplatform/flame/FlameInstanceCreationTask.h"
-#include "modplatform/modrinth/ModrinthInstanceCreationTask.h"
-#include "modplatform/technic/TechnicPackProcessor.h"
 
 #include "settings/INISettingsObject.h"
 #include "tasks/Task.h"
 
 #include "net/ApiRequest.h"
+#include "net/NetJob.h"
 
 #include <QDirListing>
 #include <QFileInfo>
@@ -137,31 +135,12 @@ void InstanceImportTask::processZipPack()
     qDebug() << "Attempting to determine instance type";
 
     QString root;
-    // NOTE: Prioritize modpack platforms that aren't searched for recursively.
-    // Especially Flame has a very common filename for its manifest, which may appear inside overrides for example
-    // https://docs.modrinth.com/docs/modpacks/format_definition/#storage
-    auto detectInstance = [this, &extractDir, &root](MMCZip::ArchiveReader::File* f) -> Result<bool> {
+    auto detectInstance = [this, &root](MMCZip::ArchiveReader::File* f) -> Result<bool> {
         if (!isRunning()) {
             return true;
         }
         auto fileName = f->filename();
-        if (fileName == "modrinth.index.json") {
-            // process as Modrinth pack
-            qDebug() << "Modrinth:" << true;
-            m_modpackType = ModpackType::Modrinth;
-            return true;
-        } else if (fileName == "bin/modpack.jar" || fileName == "bin/version.json") {
-            // process as Technic pack
-            qDebug() << "Technic:" << true;
-            extractDir.mkpath("minecraft");
-            extractDir.cd("minecraft");
-            m_modpackType = ModpackType::Technic;
-            return true;
-        } else if (fileName == "manifest.json") {
-            qDebug() << "Flame:" << true;
-            m_modpackType = ModpackType::Flame;
-            return true;
-        } else if (QFileInfo fileInfo(fileName); fileInfo.fileName() == "instance.cfg") {
+        if (QFileInfo fileInfo(fileName); fileInfo.fileName() == "instance.cfg") {
             qDebug() << "MultiMC:" << true;
             m_modpackType = ModpackType::MultiMC;
             root = cleanPath(fileInfo.path());
@@ -239,15 +218,6 @@ void InstanceImportTask::extractFinished()
         case ModpackType::MultiMC:
             processMultiMC();
             return;
-        case ModpackType::Technic:
-            processTechnic();
-            return;
-        case ModpackType::Flame:
-            processFlame();
-            return;
-        case ModpackType::Modrinth:
-            processModrinth();
-            return;
         case ModpackType::Unknown:
             emitFailed(tr("Archive does not contain a recognized modpack type."));
             return;
@@ -278,77 +248,6 @@ bool installIcon(const QString& root, const QString& instIconKey)
 }
 }  // namespace
 
-void InstanceImportTask::processFlame()
-{
-    shared_qobject_ptr<FlameCreationTask> instCreationTask = nullptr;
-    if (!m_extraInfo.isEmpty()) {
-        auto packIdIt = m_extraInfo.constFind("pack_id");
-        Q_ASSERT(packIdIt != m_extraInfo.constEnd());
-        const auto& packId = packIdIt.value();
-
-        auto packVersionIdIt = m_extraInfo.constFind("pack_version_id");
-        Q_ASSERT(packVersionIdIt != m_extraInfo.constEnd());
-        const auto& packVersionId = packVersionIdIt.value();
-
-        QString originalInstanceId;
-        auto originalInstanceIdIt = m_extraInfo.constFind("original_instance_id");
-        if (originalInstanceIdIt != m_extraInfo.constEnd()) {
-            originalInstanceId = originalInstanceIdIt.value();
-        }
-
-        instCreationTask = makeShared<FlameCreationTask>(m_stagingPath, m_trustedSource, m_globalSettings, m_parent, packId, packVersionId,
-                                                         originalInstanceId);
-    } else {
-        // FIXME: Find a way to get IDs in directly imported ZIPs
-        instCreationTask = makeShared<FlameCreationTask>(m_stagingPath, m_trustedSource, m_globalSettings, m_parent, QString(), QString());
-    }
-
-    instCreationTask->setName(modifiedName());
-    instCreationTask->setOriginalName(originalName(), version());
-    // if the icon was specified by user, use that. otherwise pull icon from the pack
-    if (m_instIcon == "default") {
-        auto iconKey = QString("Flame_%1_Icon").arg(name());
-
-        if (installIcon(m_stagingPath, iconKey)) {
-            m_instIcon = iconKey;
-        }
-    }
-    instCreationTask->setIcon(m_instIcon);
-    instCreationTask->setGroup(m_instGroup);
-    instCreationTask->setConfirmUpdate(shouldConfirmUpdate());
-
-    auto weak = instCreationTask.toWeakRef();
-    connect(instCreationTask.get(), &Task::succeeded, this, [this, weak] {
-        if (auto sp = weak.lock()) {
-            setOverride(sp->shouldOverride(), sp->originalInstanceID());
-        }
-        emitSucceeded();
-    });
-    connect(instCreationTask.get(), &Task::failed, this, &InstanceImportTask::emitFailed);
-    connect(instCreationTask.get(), &Task::progress, this, &InstanceImportTask::setProgress);
-    connect(instCreationTask.get(), &Task::stepProgress, this, &InstanceImportTask::propagateStepProgress);
-    connect(instCreationTask.get(), &Task::status, this, &InstanceImportTask::setStatus);
-    connect(instCreationTask.get(), &Task::details, this, &InstanceImportTask::setDetails);
-
-    connect(instCreationTask.get(), &Task::aborted, this, &InstanceImportTask::emitAborted);
-    connect(instCreationTask.get(), &Task::abortStatusChanged, this, &Task::setAbortable);
-    connect(instCreationTask.get(), &Task::abortButtonTextChanged, this, &Task::setAbortButtonText);
-
-    connect(instCreationTask.get(), &Task::warningLogged, this, [this](const QString& line) { m_Warnings.append(line); });
-
-    m_task.reset(instCreationTask);
-    setAbortable(true);
-    m_task->start();
-}
-
-void InstanceImportTask::processTechnic()
-{
-    shared_qobject_ptr<Technic::TechnicPackProcessor> packProcessor{ new Technic::TechnicPackProcessor };
-    connect(packProcessor.get(), &Technic::TechnicPackProcessor::succeeded, this, &InstanceImportTask::emitSucceeded);
-    connect(packProcessor.get(), &Technic::TechnicPackProcessor::failed, this, &InstanceImportTask::emitFailed);
-    packProcessor->run(m_globalSettings, name(), m_instIcon, m_stagingPath);
-}
-
 void InstanceImportTask::processMultiMC()
 {
     QString configPath = FS::PathCombine(m_stagingPath, "instance.cfg");
@@ -376,73 +275,3 @@ void InstanceImportTask::processMultiMC()
     emitSucceeded();
 }
 
-void InstanceImportTask::processModrinth()
-{
-    shared_qobject_ptr<ModrinthCreationTask> instCreationTask = nullptr;
-    if (!m_extraInfo.isEmpty()) {
-        auto packIdIt = m_extraInfo.constFind("pack_id");
-        Q_ASSERT(packIdIt != m_extraInfo.constEnd());
-        const auto& packId = packIdIt.value();
-
-        QString packVersionId;
-        auto packVersionIdIt = m_extraInfo.constFind("pack_version_id");
-        if (packVersionIdIt != m_extraInfo.constEnd()) {
-            packVersionId = packVersionIdIt.value();
-        }
-
-        QString originalInstanceId;
-        auto originalInstanceIdIt = m_extraInfo.constFind("original_instance_id");
-        if (originalInstanceIdIt != m_extraInfo.constEnd()) {
-            originalInstanceId = originalInstanceIdIt.value();
-        }
-
-        instCreationTask = makeShared<ModrinthCreationTask>(m_stagingPath, m_trustedSource, m_globalSettings, m_parent, packId,
-                                                            packVersionId, originalInstanceId);
-    } else {
-        QString packId;
-        if (!m_sourceUrl.isEmpty()) {
-            static const QRegularExpression s_regex(R"(data\/([^\/]*)\/versions)");
-            packId = s_regex.match(m_sourceUrl.toString()).captured(1);
-        }
-
-        // FIXME: Find a way to get the ID in directly imported ZIPs
-        instCreationTask = makeShared<ModrinthCreationTask>(m_stagingPath, m_trustedSource, m_globalSettings, m_parent, packId);
-    }
-
-    instCreationTask->setName(modifiedName());
-    instCreationTask->setOriginalName(originalName(), version());
-    // if the icon was specified by user, use that. otherwise pull icon from the pack
-    if (m_instIcon == "default") {
-        auto iconKey = QString("Modrinth_%1_Icon").arg(name());
-
-        if (installIcon(m_stagingPath, iconKey)) {
-            m_instIcon = iconKey;
-        }
-    }
-    instCreationTask->setIcon(m_instIcon);
-    instCreationTask->setGroup(m_instGroup);
-    instCreationTask->setConfirmUpdate(shouldConfirmUpdate());
-
-    auto weak = instCreationTask.toWeakRef();
-    connect(instCreationTask.get(), &Task::succeeded, this, [this, weak] {
-        if (auto sp = weak.lock()) {
-            setOverride(sp->shouldOverride(), sp->originalInstanceID());
-        }
-        emitSucceeded();
-    });
-    connect(instCreationTask.get(), &Task::failed, this, &InstanceImportTask::emitFailed);
-    connect(instCreationTask.get(), &Task::progress, this, &InstanceImportTask::setProgress);
-    connect(instCreationTask.get(), &Task::stepProgress, this, &InstanceImportTask::propagateStepProgress);
-    connect(instCreationTask.get(), &Task::status, this, &InstanceImportTask::setStatus);
-    connect(instCreationTask.get(), &Task::details, this, &InstanceImportTask::setDetails);
-
-    connect(instCreationTask.get(), &Task::aborted, this, &InstanceImportTask::emitAborted);
-    connect(instCreationTask.get(), &Task::abortStatusChanged, this, &Task::setAbortable);
-    connect(instCreationTask.get(), &Task::abortButtonTextChanged, this, &Task::setAbortButtonText);
-
-    connect(instCreationTask.get(), &Task::warningLogged, this, [this](const QString& line) { m_Warnings.append(line); });
-
-    m_task.reset(instCreationTask);
-    setAbortable(true);
-    m_task->start();
-}
