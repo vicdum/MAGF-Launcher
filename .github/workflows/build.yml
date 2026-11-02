@@ -4,10 +4,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# MAGF: builds run only for releases (tags) or when started by hand, not on every pull request
 on:
-  merge_group:
-    types: [checks_requested]
-  pull_request:
   workflow_call:
     inputs:
       build-type:
