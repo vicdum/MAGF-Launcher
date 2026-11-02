@@ -1,0 +1,7 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/translations">
+        <file>index_v2.json</file>
+        <file>mmc_tr.qm</file>
+    </qresource>
+</RCC>

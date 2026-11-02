@@ -86,6 +86,9 @@ class MainWindow : public QMainWindow {
     QMenu* createPopupMenu() override;
 
    private slots:
+    void ensureMagfSmp();
+    void updateMagfSmp();
+
     void onCatToggled(bool);
 
     void onCatChanged(int);

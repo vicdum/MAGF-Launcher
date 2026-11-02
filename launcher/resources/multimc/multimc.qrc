@@ -265,6 +265,7 @@
 
         <!-- instance icons -->
         <file>32x32/instances/chicken_legacy.png</file>
+        <file>128x128/instances/magf.png</file>
         <file>128x128/instances/chicken_legacy.png</file>
 
         <file>32x32/instances/creeper_legacy.png</file>

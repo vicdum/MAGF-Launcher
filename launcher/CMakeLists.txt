@@ -41,6 +41,8 @@ set(CORE_SOURCES
     # Basic instance manipulation tasks (derived from InstanceTask)
     InstanceCopyPrefs.h
     InstanceCopyPrefs.cpp
+    magf/MagfSmp.h
+    magf/MagfSmp.cpp
     InstanceCopyTask.h
     InstanceCopyTask.cpp
     InstanceImportTask.h
@@ -1058,6 +1060,7 @@ endif()
 qt_add_resources(LAUNCHER_RESOURCES
     resources/backgrounds/backgrounds.qrc
     resources/multimc/multimc.qrc
+    resources/translations/translations.qrc
     resources/breeze_dark/breeze_dark.qrc
     resources/breeze_light/breeze_light.qrc
     resources/flat/flat.qrc

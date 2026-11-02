@@ -39,6 +39,9 @@
  */
 
 #include "Application.h"
+#include "magf/MagfSmp.h"
+
+#include <QTimer>
 #include "BuildConfig.h"
 #include "FileSystem.h"
 
@@ -266,6 +269,20 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), ui(new Ui::MainWi
     // OSX magic.
     setUnifiedTitleAndToolBarOnMac(true);
 
+    // MAGF: button to update the MAGF SMP instance (mods, shader packs, default settings)
+    {
+        auto* updateMagf = new QAction(APPLICATION->logo(), QStringLiteral("MAGF SMP'yi Güncelle"), this);
+        updateMagf->setToolTip(QStringLiteral("MAGF SMP modlarını ve ayarlarını güncelle"));
+        connect(updateMagf, &QAction::triggered, this, &MainWindow::updateMagfSmp);
+        auto toolbarActions = ui->mainToolBar->actions();
+        auto addIdx = toolbarActions.indexOf(ui->actionAddInstance);
+        if (addIdx >= 0 && addIdx + 1 < toolbarActions.size()) {
+            ui->mainToolBar->insertAction(toolbarActions.at(addIdx + 1), updateMagf);
+        } else {
+            ui->mainToolBar->addAction(updateMagf);
+        }
+    }
+
     // Global shortcuts
     {
         // you can't set QKeySequence::StandardKey shortcuts in qt designer >:(
@@ -403,6 +420,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent), ui(new Ui::MainWi
         m_newsChecker->reloadNews();
         updateNewsLabel();
     }
+
+    // MAGF: create the MAGF SMP instance on first start, once the window is up
+    QTimer::singleShot(0, this, &MainWindow::ensureMagfSmp);
 
     if (APPLICATION->updaterEnabled()) {
         bool updatesAllowed = APPLICATION->updatesAreAllowed();
@@ -853,6 +873,46 @@ void MainWindow::runModalTask(Task* task)
     ProgressDialog loadDialog(this);
     loadDialog.showSkipButton();
     loadDialog.execWithTask(task);
+}
+
+void MainWindow::ensureMagfSmp()
+{
+    auto* settings = APPLICATION->settings();
+    if (settings->get("MagfSmpSetupDone").toBool()) {
+        return;
+    }
+    if (!MagfSmp::findInstance()) {
+        instanceFromInstanceTask(new MagfSmp::CreationTask());
+    }
+    if (auto* inst = MagfSmp::findInstance()) {
+        // only mark as done once it exists, so a failed first attempt (e.g. no internet) is retried on the next start
+        settings->set("MagfSmpSetupDone", true);
+        settings->set("MagfSmpInstanceId", inst->id());
+        setSelectedInstanceById(inst->id());
+    }
+}
+
+void MainWindow::updateMagfSmp()
+{
+    auto* inst = MagfSmp::findInstance();
+    if (!inst) {
+        APPLICATION->settings()->set("MagfSmpSetupDone", false);
+        ensureMagfSmp();
+        return;
+    }
+    if (inst->isRunning()) {
+        CustomMessageBox::selectable(this, QStringLiteral("MAGF SMP"), QStringLiteral("Oyun açıkken güncelleme yapılamaz. Önce oyunu kapat."),
+                                     QMessageBox::Warning)
+            ->show();
+        return;
+    }
+    MagfSmp::SyncTask task(inst->gameRoot());
+    bool ok = false;
+    connect(&task, &Task::succeeded, this, [&ok] { ok = true; });
+    runModalTask(&task);
+    if (ok && task.warnings().isEmpty()) {
+        CustomMessageBox::selectable(this, QStringLiteral("MAGF SMP"), QStringLiteral("MAGF SMP güncel."), QMessageBox::Information)->show();
+    }
 }
 
 void MainWindow::instanceFromInstanceTask(InstanceTask* rawTask)

@@ -722,7 +722,9 @@ Application::Application(int& argc, char** argv) : QApplication(argc, argv)
         m_settings->registerSetting("JsonEditor", QString());
 
         // Language
-        m_settings->registerSetting("Language", QString());
+        m_settings->registerSetting("Language", QString("tr"));
+        m_settings->registerSetting("MagfSmpSetupDone", false);
+        m_settings->registerSetting("MagfSmpInstanceId", QString());
         m_settings->registerSetting("UseSystemLocale", false);
 
         // Console
@@ -1052,6 +1054,14 @@ Application::Application(int& argc, char** argv) : QApplication(argc, argv)
 
     // load translations
     {
+        // MAGF: ship the Turkish translation so the first start is already in Turkish, without waiting for a download
+        FS::ensureFolderPathExists("translations");
+        for (const auto* file : { "index_v2.json", "mmc_tr.qm" }) {
+            const QString target = FS::PathCombine("translations", file);
+            if (!QFile::exists(target) && QFile::copy(QString(":/translations/") + file, target)) {
+                QFile::setPermissions(target, QFile::ReadOwner | QFile::WriteOwner | QFile::ReadGroup | QFile::ReadOther);
+            }
+        }
         m_translations.reset(new TranslationsModel("translations"));
         m_translations->downloadIndex();
         qInfo() << "Your language is" << m_translations->selectedLanguage();
@@ -1245,87 +1255,38 @@ Application::Application(int& argc, char** argv) : QApplication(argc, argv)
 
 bool Application::createSetupWizard()
 {
-    bool javaRequired = [this]() {
-        if (BuildConfig.JAVA_DOWNLOADER_ENABLED && settings()->get("AutomaticJavaDownload").toBool()) {
-            return false;
-        }
-        bool ignoreJavaWizard = settings()->get("IgnoreJavaWizard").toBool();
-        if (ignoreJavaWizard) {
-            return false;
-        }
-        QString currentHostName = QHostInfo::localHostName();
-        QString oldHostName = settings()->get("LastHostname").toString();
-        if (currentHostName != oldHostName) {
-            settings()->set("LastHostname", currentHostName);
-            return true;
-        }
-        QString currentJavaPath = settings()->get("JavaPath").toString();
-        QString actualPath = FS::ResolveExecutable(currentJavaPath);
-        return actualPath.isNull();
-    }();
-    bool askjava = BuildConfig.JAVA_DOWNLOADER_ENABLED && !javaRequired && !settings()->get("AutomaticJavaDownload").toBool() &&
-                   !settings()->get("AutomaticJavaSwitch").toBool() && !settings()->get("UserAskedAboutAutomaticJavaDownload").toBool();
-    bool languageRequired = settings()->get("Language").toString().isEmpty();
-    bool pasteInterventionRequired = settings()->get("PastebinURL") != "";
-    bool validWidgets = m_themeManager->isValidApplicationTheme(settings()->get("ApplicationTheme").toString());
-    bool validIcons = m_themeManager->isValidIconTheme(settings()->get("IconTheme").toString());
-    bool login = !m_accounts->anyAccountIsValid() && (capabilities().testAnyFlags(Application::SupportsMSA));
-    bool themeInterventionRequired = !validWidgets || !validIcons;
-    bool wizardRequired = javaRequired || languageRequired || pasteInterventionRequired || themeInterventionRequired || askjava || login;
-    if (wizardRequired) {
-        const bool darkMode = QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
-        // set default theme after going into theme wizard
-        if (!validIcons) {
-            QString defaultIconTheme;
-            if (QApplication::style()->name() == "breeze") {
-                defaultIconTheme = darkMode ? "breeze_dark" : "breeze_light";
-            } else {
-                defaultIconTheme = darkMode ? "flat_white" : "flat";
-            }
-
-            settings()->set("IconTheme", defaultIconTheme);
-        }
-        if (!validWidgets) {
-#if defined(Q_OS_LINUX)
-            const QString style = "system";
-#else
-            const QString style = darkMode ? QStringLiteral("dark") : QStringLiteral("bright");
-
-#endif
-
-            settings()->set("ApplicationTheme", style);
-        }
-
-        m_themeManager->applyCurrentlySelectedTheme(true);
-
-        SetupWizard setupWizard;
-        if (languageRequired) {
-            setupWizard.addPage(new LanguageWizardPage(&setupWizard));
-        }
-
-        if (javaRequired) {
-            setupWizard.addPage(new JavaWizardPage(&setupWizard));
-        } else if (askjava) {
-            setupWizard.addPage(new AutoJavaWizardPage(&setupWizard));
-        }
-
-        if (pasteInterventionRequired) {
-            setupWizard.addPage(new PasteWizardPage(&setupWizard));
-        }
-
-        if (themeInterventionRequired) {
-            setupWizard.addPage(new ThemeWizardPage(&setupWizard));
-        }
-
-        if (login) {
-            setupWizard.addPage(new LoginWizardPage(&setupWizard));
-        }
-        if (setupWizard.exec() != QDialog::Accepted) {
-            qWarning() << "Setup wizard was not completed; continuing with the current settings";
-        }
+    // MAGF: no setup wizard. Apply sensible defaults silently instead:
+    // Turkish UI (the "Language" setting defaults to "tr"), automatic Java management and a theme matching the system.
+    if (BuildConfig.JAVA_DOWNLOADER_ENABLED && !settings()->get("UserAskedAboutAutomaticJavaDownload").toBool()) {
+        settings()->set("AutomaticJavaSwitch", true);
+        settings()->set("AutomaticJavaDownload", true);
+        settings()->set("UserAskedAboutAutomaticJavaDownload", true);
+    }
+    if (settings()->get("Language").toString().isEmpty()) {
+        settings()->set("Language", "tr");
     }
 
-    return wizardRequired;
+    const bool darkMode = QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
+    if (!m_themeManager->isValidIconTheme(settings()->get("IconTheme").toString())) {
+        QString defaultIconTheme;
+        if (QApplication::style()->name() == "breeze") {
+            defaultIconTheme = darkMode ? "breeze_dark" : "breeze_light";
+        } else {
+            defaultIconTheme = darkMode ? "flat_white" : "flat";
+        }
+        settings()->set("IconTheme", defaultIconTheme);
+    }
+    if (!m_themeManager->isValidApplicationTheme(settings()->get("ApplicationTheme").toString())) {
+#if defined(Q_OS_LINUX)
+        const QString style = "system";
+#else
+        const QString style = darkMode ? QStringLiteral("dark") : QStringLiteral("bright");
+#endif
+        settings()->set("ApplicationTheme", style);
+    }
+
+    // the caller applies the selected theme when no wizard was shown
+    return false;
 }
 
 bool Application::updaterEnabled()
